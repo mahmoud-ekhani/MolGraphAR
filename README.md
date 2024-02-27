@@ -24,6 +24,23 @@ BioPython | 1.79
 conda env create -f env_cuda113.yml
 conda activate Pocket2Mol
 ```
+### Extract Pocket and Ligand from PDB File
+
+You can extract the protein pocket and corresponding ligand from a PDB file using the script `utils/extract_pocket_ligand_from_pdb.py`. 
+
+#### Features
+- **Protein Pocket Extraction**: Specify a radius to extract residues within a certain distance from the ligand center.
+- **Flexible Input**: Adjust the `radius` parameter to change the extraction threshold.
+- **Output Formats**: The extracted pocket and ligand are saved in `.pdb` and `.sdf` formats, respectively.
+
+#### Usage
+
+To use the script, provide the path to the PDB file and the desired radius for pocket extraction. For example, to process the file `example/7x79.pdb` with a radius of 10.0 Å, use the following command:
+
+```bash
+python utils/extract_pocket_ligand_from_pdb.py --pdb_path example/7x79.pdb --radius 10.0
+```
+
 
 ### Install manually
 
