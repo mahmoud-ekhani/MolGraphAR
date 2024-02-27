@@ -190,6 +190,77 @@ class PDBProtein(object):
                 block += self.atoms[atom_idx]['line'] + "\n"
         block += "END\n"
         return block
+    
+
+class PDBLigand(object):
+    def __init__(self, data, mode='auto'):
+        super().__init__()
+        if (data[-4:].lower() == '.pdb' and mode == 'auto') or mode == 'path':
+            with open(data, 'r') as f:
+                self.block = f.read()
+        else:
+            self.block = data
+        self.ptable = Chem.GetPeriodicTable()
+        # Molecule properties
+        self.title = None
+        # Atom properties
+        self.atoms = []
+        self.element = []
+        self.pos = []
+        self.atom_name = []
+        self._parse()
+
+    def _enum_formatted_atom_lines(self):
+        for line in self.block.splitlines():
+            if line[0:6].strip() == 'HETATM':
+                element_symb = line[76:78].strip().capitalize()
+                if len(element_symb) == 0:
+                    element_symb = line[13:14]
+                yield {
+                    'line': line,
+                    'type': 'HETATM',
+                    'atom_name': line[12:16].strip(),
+                    'res_name': line[17:20].strip(),
+                    'x': float(line[30:38]),
+                    'y': float(line[38:46]),
+                    'z': float(line[46:54]),
+                    'element_symb': element_symb,
+                }
+            elif line[0:6].strip() == 'HEADER':
+                yield {
+                    'type': 'HEADER',
+                    'value': line[10:].strip()
+                }
+            elif line[0:6].strip() == 'ENDMDL':
+                break   
+
+    def _parse(self):
+        for atom in self._enum_formatted_atom_lines():
+            if atom['type'] == 'HEADER':
+                self.title = atom['value'].lower()
+                continue
+            if atom['res_name'] in ['HOH', 'CA', 'H2S']:
+                continue
+            self.atoms.append(atom)
+            atomic_number = self.ptable.GetAtomicNumber(atom['element_symb'])
+            self.element.append(atomic_number)
+            self.pos.append(np.array([atom['x'], atom['y'], atom['z']], dtype=np.float32))
+            self.atom_name.append(atom['atom_name'])
+
+    def to_dict_atom(self):
+        return {
+            'element': np.array(self.element, dtype=np.int64),
+            'pos': np.array(self.pos, dtype=np.float32),
+            'atom_name': self.atom_name,
+        }
+
+    def atoms_to_pdb_block(self, name='LIGAND'):
+        block = "HEADER    %s\n" % name
+        block += "COMPND    %s\n" % name
+        for atom in self.atoms:
+            block += atom['line'] + "\n"
+        block += "END\n"
+        return block
 
 
 def parse_pdbbind_index_file(path):
