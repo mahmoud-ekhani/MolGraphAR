@@ -64,6 +64,24 @@ To use the script, provide the path to the PDB file and the desired radius for p
 python utils/extract_pocket_ligand_from_pdb.py --pdb_path example/7x79.pdb --radius 10.0
 ```
 
+The outputs will be saved in the same directory as the pdb file, e.g., `example/7x79_pocket10.pdb` contains the pocket and `example/7x79_ligand.sdf` contains the cognate ligand.
+
+## Generating a docked conformer from a given smiles
+
+You can create a conformer for a given SMILES string using the `utils/smiles_conformer_generator.py` tool.
+
+You need to specify the protein pocket and a reference molecule.
+
+The reference molecule's center will be used to determine the bounding box for docking the conformer of the SMILES to protein pocket.
+
+Example usage for  `example/7x79_pocket10.pdb` and `example/7x79_ligand.sdf` :
+
+```bash
+python utils/smiles_conformer_generator.py --smiles {the_smiles_string} --pdb_path example/7x79_pocket10.pdb --sdf_path `example/7x79_ligand.sdf`
+```
+
+Running the above code will generate a sdf file in `./tmp` folder containing the docked poses of the SMILES conformer.
+
 ## Datasets
 
 Please refer to [`README.md`](./data/README.md) in the `data` folder.
