@@ -1,67 +1,68 @@
 # Pocket2Mol: Efficient Molecular Sampling Based on 3D Protein Pockets
 
-[Pocket2Mol](https://arxiv.org/abs/2205.07249) used equivariant graph neural networks to improve efficiency and molecule quality of [previous structure-based drug design model](https://arxiv.org/abs/2203.10446).
+<!-- [Pocket2Mol](https://arxiv.org/abs/2205.07249) used equivariant graph neural networks to improve efficiency and molecule quality of [previous structure-based drug design model](https://arxiv.org/abs/2203.10446).
 
-<img src="./assets/model.jpg" alt="model"  width="70%"/>
+<img src="./assets/model.jpg" alt="model"  width="70%"/> -->
 
 
 ## Installation
-**Update**: Now the codes are compatible with PyTorch Geometric (PyG) >= 2.0.
-### Dependency
+<!-- **Update**: Now the codes are compatible with PyTorch Geometric (PyG) >= 2.0. -->
+<!-- ### Dependency
 The codes have been tested in the following environment:
 Package  | Version
 --- | ---
 Python | 3.8.12
 PyTorch | 1.10.1
-CUDA | 11.3.1
-PyTorch Geometric | **2.0.0**
+PyTorch Geometric | 2.0.0
 RDKit | 2022.03
-BioPython | 1.79
+BioPython | 1.79 -->
 <!-- OpenBabel | 3.1.0 -->
 <!-- NOTE: Current implementation relies on PyTorch Geometric (PyG) < 2.0.0. We will fix compatability issues for the latest PyG version in the future. -->
-### Install via conda yaml file (cuda 11.3)
+<!-- ### Install via conda yaml file (cuda 11.3)
 ```bash
 conda env create -f env_cuda113.yml
 conda activate Pocket2Mol
+```-->
+
+### Install manually
+``` bash
+conda create -n pocket2mol python=3.8
+conda activate pocket2mol
+
+# Install PyTorch and PyTorch Geometric
+conda install pytorch==1.10.1 -c pytorch
+conda install pyg -c pyg
+
+# Install RdKit, BioPython, OpenBable, and other tools
+conda install rdkit -c conda-forge 
+conda install biopython -c conda-forge 
+conda install openbabel -c conda-forge
+conda install pyyaml easydict python-lmdb -c conda-forge
+
+# Install tensorboard only for training
+conda install tensorboard -c conda-forge  
+
+# Install docking tools
+pip install meeko==0.1.dev3 scipy pdb2pqr vina==1.2.2
+pip install git+https://github.com/Valdes-Tresanco-MS/AutoDockTools_py3
 ```
-### Extract Pocket and Ligand from PDB File
+
+## Extract Pocket and Ligand from PDB File
 
 You can extract the protein pocket and corresponding ligand from a PDB file using the script `utils/extract_pocket_ligand_from_pdb.py`. 
 
-#### Features
+### Features
 - **Protein Pocket Extraction**: Specify a radius to extract residues within a certain distance from the ligand center.
 - **Flexible Input**: Adjust the `radius` parameter to change the extraction threshold.
 - **Output Formats**: The extracted pocket and ligand are saved in `.pdb` and `.sdf` formats, respectively.
 
-#### Usage
+### Usage
 
 To use the script, provide the path to the PDB file and the desired radius for pocket extraction. For example, to process the file `example/7x79.pdb` with a radius of 10.0 Å, use the following command:
 
 ```bash
 python utils/extract_pocket_ligand_from_pdb.py --pdb_path example/7x79.pdb --radius 10.0
 ```
-
-
-### Install manually
-
-``` bash
-conda create -n Pocket2Mol python=3.8
-conda activate Pocket2Mol
-
-# Install PyTorch (for cuda 11.3)
-conda install pytorch==1.10.1 cudatoolkit=11.3 -c pytorch -c conda-forge
-# Install PyTorch Geometric (>=2.0.0)
-conda install pyg -c pyg
-
-# Install other tools
-conda install -c conda-forge rdkit
-conda install biopython -c conda-forge # used only in sample_for_pdb.py
-conda install pyyaml easydict python-lmdb -c conda-forge
-
-# Install tensorboard only for training
-conda install tensorboard -c conda-forge  
-```
-
 
 ## Datasets
 
