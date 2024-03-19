@@ -5,6 +5,9 @@ import tempfile
 import contextlib
 import string
 import random
+import shutil
+import pandas as pd
+from tqdm.auto import tqdm
 from openbabel import pybel
 from meeko import MoleculePreparation, obutils
 from vina import Vina
@@ -86,9 +89,10 @@ class PrepProt:
 
 
 class VinaDock(object): 
-    def __init__(self, lig_pdbqt, prot_pdbqt): 
+    def __init__(self, lig_pdbqt, prot_pdbqt, lig_sdf): 
         self.lig_pdbqt = lig_pdbqt
         self.prot_pdbqt = prot_pdbqt
+        self.lig_sdf = lig_sdf
     
     def _max_min_pdb(self, pdb, buffer):
         with open(pdb, 'r') as f: 
@@ -118,11 +122,12 @@ class VinaDock(object):
         self.pocket_center, self.box_size = self._max_min_pdb(ref, buffer)
         print(self.pocket_center, self.box_size)
 
-    def dock(self, score_func='vina', seed=0, mode='dock', exhaustiveness=8, n_poses=1, save_pose=False, **kwargs):  # seed=0 mean random seed
+    def dock(self, score_func='vina', seed=0, mode='dock', exhaustiveness=8, n_poses=1, save_pose=False, **kwargs):
         v = Vina(sf_name=score_func, seed=seed, verbosity=0, **kwargs)
         v.set_receptor(self.prot_pdbqt)
         v.set_ligand_from_file(self.lig_pdbqt)
         v.compute_vina_maps(center=self.pocket_center, box_size=self.box_size)
+
         if mode == 'score_only': 
             score = v.score()[0]
         elif mode == 'minimize':
@@ -132,34 +137,35 @@ class VinaDock(object):
             score = v.energies(n_poses=n_poses)[0][0]
         else:
             raise ValueError
-        
-        if not save_pose: 
-            return score
-        else: 
-            if mode == 'score_only': 
-                pose = None 
-            elif mode == 'minimize': 
-                tmp = tempfile.NamedTemporaryFile()
-                with open(tmp.name, 'w') as f: 
-                    v.write_pose(tmp.name, overwrite=True)             
-                with open(tmp.name, 'r') as f: 
-                    pose = f.read()
-   
-            elif mode == 'dock': 
-                pose = v.poses(n_poses=n_poses)
-                subprocess.run(['obabel', '-ipdbqt', self.lig_pdbqt, '-osdf', '-O' + self.lig_pdbqt[:-5] + 'sdf'],
-                               stderr=subprocess.DEVNULL, stdout=subprocess.DEVNULL)
+
+        if save_pose: 
+            if mode in ['minimize', 'dock']:
+                # Save docked poses in PDBQT format
+                v.write_poses(self.lig_pdbqt, n_poses=n_poses, overwrite=True)
+                
+                # Convert PDBQT to SDF
+                sdf_filename = self.lig_sdf
+                subprocess.run(['obabel', '-ipdbqt', self.lig_pdbqt, '-osdf', '-O' + sdf_filename],
+                            stderr=subprocess.DEVNULL, stdout=subprocess.DEVNULL)
+
+            if mode == 'score_only':
+                pose = None
             else:
-                raise ValueError
+                # Read back the converted SDF file
+                with open(sdf_filename, 'r') as f:
+                    pose = f.read()
+
             return score, pose
+        else:
+            return score
 
 
 class VinaDockingTask:
-
     def __init__(self, 
                  smiles,
                  protein_path, 
                  ref_ligand_path, 
+                 gen_ligand_name=None,
                  tmp_dir='./tmp', 
                  center=None, 
                  size_factor=None, 
@@ -171,7 +177,7 @@ class VinaDockingTask:
         self.smiles = smiles
 
         ref_ligand_rdmol = next(iter(Chem.SDMolSupplier(ref_ligand_path)))
-        # ref_ligand_rdmol = Chem.AddHs(ref_ligand_rdmol, addCoords=True)
+        ref_ligand_rdmol = Chem.AddHs(ref_ligand_rdmol, addCoords=True)
         self.ref_ligand_rdmol = ref_ligand_rdmol
         self.protein_path = protein_path
 
@@ -179,7 +185,11 @@ class VinaDockingTask:
         self.receptor_id = self.task_id + '_receptor'
         self.ligand_id = self.task_id + '_ligand'
         self.receptor_path = os.path.join(self.tmp_dir, self.receptor_id + '.pdb')
-        self.ligand_path = os.path.join(self.tmp_dir, self.ligand_id + '.sdf')
+        if gen_ligand_name is None:
+            self.ligand_path = os.path.join(self.tmp_dir, self.ligand_id + '.sdf')
+        else:
+            self.ligand_path = os.path.join(self.tmp_dir, gen_ligand_name + '.sdf')
+
 
         pos = ref_ligand_rdmol.GetConformer(0).GetPositions()
         if center is None:
@@ -188,7 +198,7 @@ class VinaDockingTask:
             self.center = center
 
         if size_factor is None:
-            self.size_x, self.size_y, self.size_z = 5, 5, 5
+            self.size_x, self.size_y, self.size_z = 20, 20, 20
         else:
             self.size_x, self.size_y, self.size_z = (pos.max(0) - pos.min(0)) * size_factor + buffer
 
@@ -198,11 +208,12 @@ class VinaDockingTask:
         self.error_output = None
         self.docked_sdf_path = None
 
-    def run(self, mode='dock', exhaustiveness=8, n_poses=10, **kwargs):
+    def run(self, mode='dock', exhaustiveness=8, n_poses=1, **kwargs):
         ligand_pdbqt = self.ligand_path[:-4] + '.pdbqt'
         protein_dry = self.receptor_path[:-4] + '.pdb'
         protein_pqr = self.receptor_path[:-4] + '.pqr'
         protein_pdbqt = self.receptor_path[:-4] + '.pdbqt'
+        ligand_sdf = self.ligand_path
 
         lig = PrepLig(self.smiles, 'smi')
         lig.add_hydrogens()
@@ -214,7 +225,7 @@ class VinaDockingTask:
         prot.add_hydrogens(protein_pqr)
         prot.get_pdbqt(protein_pdbqt)
 
-        dock = VinaDock(ligand_pdbqt, protein_pdbqt)
+        dock = VinaDock(ligand_pdbqt, protein_pdbqt, ligand_sdf)
         dock.pocket_center, dock.box_size = self.center, [self.size_x, self.size_y, self.size_z]
         score, pose = dock.dock(score_func='vina', mode=mode, exhaustiveness=exhaustiveness, n_poses=n_poses, save_pose=True, **kwargs)
         os.remove('conf_h.sdf')
@@ -229,15 +240,44 @@ def parse_arguments():
     parser.add_argument('--smiles', type=str, default='NC(=O)C(=O)C(Cc1ccccc1)NC(=O)[C@@H]1CCOc2ccc(Cl)cc21', help='SMILES string of the ligand.')
     parser.add_argument('--pdb_path', type=str, default='example/7x79_pocket10.pdb', help='Path to the protein PDB file.')
     parser.add_argument('--sdf_path', type=str, default='example/7x79_ligand.sdf', help='Path to the reference ligand SDF file.')
+    parser.add_argument('--csv_path', type=str, default='example/2024_03_19.csv', help='Path to the csv file for batch processing.')
+    parser.add_argument('--n_poses', type=int, default=1, help='number of generated binding poses.')
+    parser.add_argument('--exhaustiveness', type=int, default=20, help='controls how extensively the docking algorithm explores the possible orientations and conformations')
     return parser.parse_args()
 
 
 if __name__ == '__main__':
     args = parse_arguments()
 
-    docking_task = VinaDockingTask(smiles=args.smiles,
-                                   protein_path=args.pdb_path,
-                                   ref_ligand_path=args.sdf_path)
-    result = docking_task.run()
-    print(f'Docking score: {result["affinity"]}')
+    if args.csv_path is None:
+        docking_task = VinaDockingTask(smiles=args.smiles,
+                                    protein_path=args.pdb_path,
+                                    ref_ligand_path=args.sdf_path,
+                                    )
+        result = docking_task.run(exhaustiveness=args.exhaustiveness, n_poses=args.n_poses)
+        print(f'Docking score: {result["affinity"]}')
+    else:
+        df = pd.read_csv(args.csv_path)
+        for index, row in tqdm(df.iterrows(), desc='Docking Molecules', total=df.shape[0]):
+            molecule_name = row['Molecule Name']
+            smiles = row['SMILES']
+            docking_task = VinaDockingTask(smiles=smiles,
+                                        protein_path=args.pdb_path,
+                                        ref_ligand_path=args.sdf_path,
+                                        gen_ligand_name=molecule_name
+                                        )
+            result = docking_task.run(exhaustiveness=args.exhaustiveness, n_poses=args.n_poses)
+            print(f'Docking score: {result["affinity"]}')
+
+            csv_file_name = os.path.basename(args.csv_path)
+            new_folder_name = csv_file_name.replace('.csv', '_conformers')
+            new_folder_path = os.path.join(os.path.dirname(args.csv_path), new_folder_name)
+
+            os.makedirs(new_folder_path, exist_ok=True)
+
+            for filename in os.listdir('tmp'):
+                if filename.endswith('.sdf'):
+                    shutil.move(os.path.join('tmp', filename), new_folder_path)
+            shutil.rmtree('tmp')
+
     
