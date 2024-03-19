@@ -9,9 +9,8 @@ from Bio.PDB.Selection import unfold_entities
 from rdkit import Chem
 from rdkit.Chem import Lipinski, Descriptors, rdMolDescriptors as rdmds
 
-from utils.protein_ligand import PDBProtein
+from utils.protein_ligand import PDBProtein, parse_sdf_file
 from sample import *    # Import everything from `sample.py`
-
 
 def structural_alerts(alerts_path, mol, rule_set='Razavi'):
     """
@@ -33,7 +32,6 @@ def structural_alerts(alerts_path, mol, rule_set='Razavi'):
             alerts.append(row['description'])
     return alerts
 
-
 def validate_molecule(mol, alerts_path, rule_set='Razavi'):
     """
     Check if a molecule satisfies a list of property constraints and does not contain structural alerts.
@@ -54,10 +52,10 @@ def validate_molecule(mol, alerts_path, rule_set='Razavi'):
     violations_alerts = violations + alerts
     return (len(violations) <= 2 and not alerts, violations_alerts)
 
-
-
-def pdb_to_pocket_data(pdb_path, center, bbox_size):
-    center = torch.FloatTensor(center)
+def pdb_to_pocket_data(pdb_path, sdf_path, bbox_size):
+    ligand_dict = parse_sdf_file(sdf_path)
+    center = torch.FloatTensor(ligand_dict['center_of_mass'])
+    # center = torch.FloatTensor(center)
     warnings.simplefilter('ignore', BiopythonWarning)
     ptable = Chem.GetPeriodicTable()
     parser = PDBParser()
@@ -97,29 +95,28 @@ def pdb_to_pocket_data(pdb_path, center, bbox_size):
 
     data = ProteinLigandData.from_protein_ligand_dicts(
         protein_dict = protein_dict,
-        ligand_dict = {
-            'element': torch.empty([0,], dtype=torch.long),
-            'pos': torch.empty([0, 3], dtype=torch.float),
-            'atom_feature': torch.empty([0, 8], dtype=torch.float),
-            'bond_index': torch.empty([2, 0], dtype=torch.long),
-            'bond_type': torch.empty([0,], dtype=torch.long),
-        }
+        ligand_dict = torchify_dict(ligand_dict),
+        # ligand_dict = {
+        #     'element': torch.empty([0,], dtype=torch.long),
+        #     'pos': torch.empty([0, 3], dtype=torch.float),
+        #     'atom_feature': torch.empty([0, 8], dtype=torch.float),
+        #     'bond_index': torch.empty([2, 0], dtype=torch.long),
+        #     'bond_type': torch.empty([0,], dtype=torch.long),
+        # }
     )
     return data
-
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--pdb_path', type=str,
-                        default='./example/4yhj.pdb')
-    parser.add_argument('--center', type=lambda s: list(map(float, s.split(','))),
-                        default=[32.0, 28.0, 36.0], 
-                        help='Center of the pocket bounding box, in format x,y,z')
+                        default='example/7x79.pdb')
+    parser.add_argument('--sdf_path', type=str, 
+                        default='example/7x79_ligand.sdf')
     parser.add_argument('--bbox_size', type=float, default=23.0, 
                         help='Pocket bounding box size')
-    parser.add_argument('--config', type=str, default='./configs/sample_for_pdb.yml')
-    parser.add_argument('--device', type=str, default='cuda')
-    parser.add_argument('--outdir', type=str, default='./outputs')
+    parser.add_argument('--config', type=str, default='configs/sample_for_pdb.yml')
+    parser.add_argument('--device', type=str, default='cpu')
+    parser.add_argument('--outdir', type=str, default='outputs')
     args = parser.parse_args()
 
     # Load configs
@@ -152,7 +149,7 @@ if __name__ == '__main__':
         masking,
     ])
     # # Data
-    data = pdb_to_pocket_data(args.pdb_path, args.center, args.bbox_size)
+    data = pdb_to_pocket_data(args.pdb_path, args.sdf_path, args.bbox_size)
     data = transform(data)
 
     # # Model (Main)
@@ -227,6 +224,7 @@ if __name__ == '__main__':
                             rdmol = reconstruct_from_generated_with_edges(data_next)
                             data_next.rdmol = rdmol
                             mol = Chem.MolFromSmiles(Chem.MolToSmiles(rdmol))
+                            mol_val, violations = validate_molecule(mol)
                             smiles = Chem.MolToSmiles(mol)
                             data_next.smiles = smiles
                             if smiles in pool.smiles:
@@ -234,6 +232,9 @@ if __name__ == '__main__':
                                 pool.duplicate.append(data_next)
                             elif '.' in smiles:
                                 logger.warning('Failed molecule: %s' % smiles)
+                                pool.failed.append(data_next)
+                            elif not mol_val:
+                                logger.warning('Failed molecule: %s \n Violations: %s' % smiles % ' -- '.join(violations))
                                 pool.failed.append(data_next)
                             else:   # Pass checks
                                 logger.info('Success: %s' % smiles)
