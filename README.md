@@ -1,4 +1,4 @@
-# Pocket2Mol: Efficient Molecular Sampling Based on 3D Protein Pockets
+# MolGraphAR: Autoregressive Molecular Fragment Growing in 3D Using Pocket2Mol
 
 <!-- [Pocket2Mol](https://arxiv.org/abs/2205.07249) used equivariant graph neural networks to improve efficiency and molecule quality of [previous structure-based drug design model](https://arxiv.org/abs/2203.10446).
 
@@ -6,25 +6,6 @@
 
 
 ## Installation
-<!-- **Update**: Now the codes are compatible with PyTorch Geometric (PyG) >= 2.0. -->
-<!-- ### Dependency
-The codes have been tested in the following environment:
-Package  | Version
---- | ---
-Python | 3.8.12
-PyTorch | 1.10.1
-PyTorch Geometric | 2.0.0
-RDKit | 2022.03
-BioPython | 1.79 -->
-<!-- OpenBabel | 3.1.0 -->
-<!-- NOTE: Current implementation relies on PyTorch Geometric (PyG) < 2.0.0. We will fix compatability issues for the latest PyG version in the future. -->
-<!-- ### Install via conda yaml file (cuda 11.3)
-```bash
-conda env create -f env_cuda113.yml
-conda activate Pocket2Mol
-```-->
-
-### Install manually
 ``` bash
 conda create -n pocket2mol python=3.8
 conda activate pocket2mol
@@ -39,9 +20,6 @@ conda install biopython -c conda-forge
 conda install openbabel -c conda-forge
 conda install pyyaml easydict python-lmdb -c conda-forge
 
-# Install tensorboard only for training
-conda install tensorboard -c conda-forge  
-
 # Install docking tools
 pip install meeko==0.1.dev3 scipy pdb2pqr vina==1.2.2
 pip install git+https://github.com/Valdes-Tresanco-MS/AutoDockTools_py3
@@ -49,11 +27,10 @@ pip install git+https://github.com/Valdes-Tresanco-MS/AutoDockTools_py3
 
 ## Extract Pocket and Ligand from PDB File
 
-You can extract the protein pocket and corresponding ligand from a PDB file using the script `utils/extract_pocket_ligand_from_pdb.py`. 
+You can extract the protein pocket and the corresponding ligand from a PDB file using the script `utils/extract_pocket_ligand_from_pdb.py`. 
 
 ### Features
 - **Protein Pocket Extraction**: Specify a radius to extract residues within a certain distance from the ligand center.
-- **Flexible Input**: Adjust the `radius` parameter to change the extraction threshold.
 - **Output Formats**: The extracted pocket and ligand are saved in `.pdb` and `.sdf` formats, respectively.
 
 ### Usage
@@ -72,7 +49,9 @@ You can create a conformer for a given SMILES string using the `utils/smiles_con
 
 You need to specify the protein pocket and a reference molecule.
 
-The reference molecule's center will be used to determine the bounding box for docking the conformer of the SMILES to protein pocket.
+A general conformer is first generated using OpenBabel.
+
+The reference molecule's center will be used to determine the bounding box for docking the conformer of the SMILES to the protein pocket.
 
 Example usage for  `example/7x79_pocket10.pdb` and `example/7x79_ligand.sdf` :
 
@@ -82,7 +61,7 @@ python utils/smiles_conformer_generator.py --smiles {the_smiles_string} --pdb_pa
 
 Running the above code will generate a sdf file in `./tmp` folder containing the docked poses of the SMILES conformer.
 
-## Datasets
+<!-- ## Datasets
 
 Please refer to [`README.md`](./data/README.md) in the `data` folder.
 
@@ -148,4 +127,4 @@ For training, we recommend to install [`apex` ](https://github.com/NVIDIA/apex) 
 ```
 
 ## Contact 
-Xingang Peng (xingang.peng@gmail.com)
+Xingang Peng (xingang.peng@gmail.com) -->
