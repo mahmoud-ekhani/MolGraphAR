@@ -1,14 +1,59 @@
 import os
 import argparse
 import warnings
+import pandas as pd
 from easydict import EasyDict
 from Bio import BiopythonWarning
 from Bio.PDB.PDBParser import PDBParser
 from Bio.PDB.Selection import unfold_entities
 from rdkit import Chem
+from rdkit.Chem import Lipinski, Descriptors, rdMolDescriptors as rdmds
 
 from utils.protein_ligand import PDBProtein
 from sample import *    # Import everything from `sample.py`
+
+
+def structural_alerts(alerts_path, mol, rule_set='Razavi'):
+    """
+    Check for structural alerts within sampled molecules based on a provided rule set.
+    """
+    try:
+        rules = pd.read_csv(alerts_path)
+    except Exception as e:
+        raise ValueError(f'Error reading structural alerts: {e}')
+    
+    rules_set = rules[rules['rule_set']==rule_set]
+
+    alerts = []
+    for _, row in rules_set.iterrows():
+        alert_mol = Chem.MolFromSmarts(row['smarts'])
+        if alert_mol is None:
+            continue
+        if mol.HasSubstructureMatch(alert_mol):
+            alerts.append(row['description'])
+    return alerts
+
+
+def validate_molecule(mol, alerts_path, rule_set='Razavi'):
+    """
+    Check if a molecule satisfies a list of property constraints and does not contain structural alerts.
+    """
+    property_checkers = {
+        "Heavy Atom Count": lambda m: 15 <= Lipinski.HeavyAtomCount(m) <= 40,
+        "Hydrogen Bond Donors": lambda m: 1 <= rdmds.CalcNumHBD(m) <= 3,
+        "Hydrogen Bond Acceptors": lambda m: 1 <= rdmds.CalcNumHBA(m) <= 8,
+        "Rotatable Bonds": lambda m: 1 <= rdmds.CalcNumRotatableBonds(m) <= 6,
+        "Topological Polar Surface Area": lambda m: 30 <= rdmds.CalcTPSA(m, includeSandP=True) <= 145,
+        "LogP": lambda m: 1 <= Descriptors.MolLogP(m) <= 5,
+        "Aromatic Rings": lambda m: rdmds.CalcNumAromaticRings(m) <= 3
+    }
+
+    violations = [prop for prop, checker in property_checkers.items() if not checker(mol)]
+    alerts = structural_alerts(alerts_path, mol, rule_set)
+
+    violations_alerts = violations + alerts
+    return (len(violations) <= 2 and not alerts, violations_alerts)
+
 
 
 def pdb_to_pocket_data(pdb_path, center, bbox_size):
