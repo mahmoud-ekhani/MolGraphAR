@@ -33,7 +33,7 @@ def structural_alerts(alerts_path, mol, rule_set='Razavi'):
             alerts.append(row['description'])
     return alerts
 
-def validate_molecule(mol, alerts_path, rule_set='Razavi'):
+def validate_molecule(mol, alerts_path=None, rule_set='Razavi'):
     """
     Check if a molecule satisfies a list of property constraints and does not contain structural alerts.
     """
