@@ -67,6 +67,16 @@ You can also process a batch of smiles by providing them in a csv format:
 python utils/smiles_conformer_generator.py --csv_path {path_to_csv} --pdb_path {path_to_protein_pocket} --sdf_path {path_to_reference_ligand}
 ```
 
+## Sample
+
+Given the generated conformer using `utils/smiles_conformer_generator.py` (or any othe technique), the `template_based_sample_for_pdb.py` script can be used for fragment growning. 
+
+```bash
+python template_based_sample_for_pdb.py --pdb_path {path_to_protein_pdb} --sdf_path {path_to_fragment_structure} 
+```
+
+
+
 <!-- ## Datasets
 
 Please refer to [`README.md`](./data/README.md) in the `data` folder.
