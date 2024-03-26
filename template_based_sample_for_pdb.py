@@ -10,6 +10,7 @@ from rdkit import Chem
 from rdkit.Chem import Lipinski, Descriptors, rdMolDescriptors as rdmds
 
 from utils.protein_ligand import PDBProtein, parse_sdf_file
+from utils.data import torchify_dict
 from sample import *    # Import everything from `sample.py`
 
 def structural_alerts(alerts_path, mol, rule_set='Razavi'):
@@ -47,10 +48,10 @@ def validate_molecule(mol, alerts_path, rule_set='Razavi'):
     }
 
     violations = [prop for prop, checker in property_checkers.items() if not checker(mol)]
-    alerts = structural_alerts(alerts_path, mol, rule_set)
+    # alerts = structural_alerts(alerts_path, mol, rule_set)
+    alerts = []
 
-    violations_alerts = violations + alerts
-    return (len(violations) <= 2 and not alerts, violations_alerts)
+    return (len(violations) <= 2 and not alerts, violations + alerts)
 
 def pdb_to_pocket_data(pdb_path, sdf_path, bbox_size):
     ligand_dict = parse_sdf_file(sdf_path)
@@ -111,8 +112,8 @@ if __name__ == '__main__':
     parser.add_argument('--pdb_path', type=str,
                         default='example/7x79.pdb')
     parser.add_argument('--sdf_path', type=str, 
-                        default='example/7x79_ligand.sdf')
-    parser.add_argument('--bbox_size', type=float, default=23.0, 
+                        default='example/1910-1552-modified.sdf')
+    parser.add_argument('--bbox_size', type=float, default=30.0, 
                         help='Pocket bounding box size')
     parser.add_argument('--config', type=str, default='configs/sample_for_pdb.yml')
     parser.add_argument('--device', type=str, default='cpu')
@@ -140,7 +141,8 @@ if __name__ == '__main__':
     protein_featurizer = FeaturizeProteinAtom()
     ligand_featurizer = FeaturizeLigandAtom()
     contrastive_sampler = ContrastiveSample(num_real=0, num_fake=0)
-    masking = LigandMaskAll()
+    # masking = LigandMaskAll()
+    masking = LigandMixedMask(max_ratio=0.05)
     transform = Compose([
         RefineData(),
         LigandCountNeighbors(),
