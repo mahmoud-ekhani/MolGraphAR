@@ -42,15 +42,21 @@ class PrepLig:
     def generate_conformation(self):
         sdf_block = self.ob_mol.write('sdf')
         rdkit_mol = Chem.MolFromMolBlock(sdf_block, removeHs=False)
-        AllChem.EmbedMolecule(rdkit_mol, Chem.rdDistGeom.ETKDGv3())
         
-        # Energy minimization
-        force_field = AllChem.UFFGetMoleculeForceField(rdkit_mol)
-        if force_field:
-            force_field.Initialize()
-            force_field.Minimize()
+        # Attempt to generate 3D conformation with RDKit
+        if AllChem.EmbedMolecule(rdkit_mol, Chem.rdDistGeom.ETKDGv3()) == 0:
+            # RDKit conformation generation succeeded
+            AllChem.UFFOptimizeMolecule(rdkit_mol)
+            self.ob_mol = pybel.readstring('sdf', Chem.MolToMolBlock(rdkit_mol))
+        else:
+            # RDKit conformation generation failed, use Open Babel
+            # This requires a temporary file
+            tmp_filename = 'temp_molecule.sdf'
+            self.ob_mol.write('sdf', tmp_filename)
+            subprocess.run(['obabel', tmp_filename, '-O', tmp_filename, '--gen3D'])
+            self.ob_mol = next(pybel.readfile('sdf', tmp_filename))
+            os.remove(tmp_filename)
         
-        self.ob_mol = pybel.readstring('sdf', Chem.MolToMolBlock(rdkit_mol))
         obutils.writeMolecule(self.ob_mol.OBMol, 'conf_h.sdf')
         os.remove('tmp_h.sdf')
 
@@ -198,7 +204,7 @@ class VinaDockingTask:
             self.center = center
 
         if size_factor is None:
-            self.size_x, self.size_y, self.size_z = 20, 20, 20
+            self.size_x, self.size_y, self.size_z = 30, 30, 30
         else:
             self.size_x, self.size_y, self.size_z = (pos.max(0) - pos.min(0)) * size_factor + buffer
 
@@ -237,10 +243,11 @@ class VinaDockingTask:
     
 def parse_arguments():
     parser = argparse.ArgumentParser(description='Molecular docking using SMILES and PDB files.')
-    parser.add_argument('--smiles', type=str, default='NC(=O)C(=O)C(Cc1ccccc1)NC(=O)[C@@H]1CCOc2ccc(Cl)cc21', help='SMILES string of the ligand.')
+    parser.add_argument('--smiles', type=str, default='NC(=O)C(=O)C(Cc1ccccc1)NC(=O)C', help='SMILES string of the ligand.')
+    parser.add_argument('--mol_name', type=str, default='1910-1552-modified', help='Name of the molecule associated with the smiles.')
     parser.add_argument('--pdb_path', type=str, default='example/7x79_pocket10.pdb', help='Path to the protein PDB file.')
     parser.add_argument('--sdf_path', type=str, default='example/7x79_ligand.sdf', help='Path to the reference ligand SDF file.')
-    parser.add_argument('--csv_path', type=str, default='example/2024_03_19.csv', help='Path to the csv file for batch processing.')
+    parser.add_argument('--csv_path', type=str, default=None, help='Path to the csv file for batch processing.')
     parser.add_argument('--n_poses', type=int, default=1, help='number of generated binding poses.')
     parser.add_argument('--exhaustiveness', type=int, default=20, help='controls how extensively the docking algorithm explores the possible orientations and conformations')
     return parser.parse_args()
@@ -256,6 +263,13 @@ if __name__ == '__main__':
                                     )
         result = docking_task.run(exhaustiveness=args.exhaustiveness, n_poses=args.n_poses)
         print(f'Docking score: {result["affinity"]}')
+        for filename in os.listdir('tmp'):
+                if filename.endswith('.sdf'):
+                    shutil.move(os.path.join('tmp', filename), 
+                                os.path.join(os.path.dirname(args.pdb_path), args.mol_name + '.sdf')
+                                )
+        shutil.rmtree('tmp')
+
     else:
         df = pd.read_csv(args.csv_path)
         for index, row in tqdm(df.iterrows(), desc='Docking Molecules', total=df.shape[0]):
@@ -266,6 +280,7 @@ if __name__ == '__main__':
                                         ref_ligand_path=args.sdf_path,
                                         gen_ligand_name=molecule_name
                                         )
+                                        
             result = docking_task.run(exhaustiveness=args.exhaustiveness, n_poses=args.n_poses)
             print(f'Docking score: {result["affinity"]}')
 
