@@ -59,7 +59,12 @@ Example usage for  `example/7x79_pocket10.pdb` and `example/7x79_ligand.sdf` :
 python utils/smiles_conformer_generator.py --smiles {the_smiles_string} --pdb_path example/7x79_pocket10.pdb --sdf_path `example/7x79_ligand.sdf`
 ```
 
-Running the above code will generate a sdf file in `./tmp` folder containing the docked poses of the SMILES conformer.
+Running the above code will generate a sdf file in containing a docked conformer of the given smiles in the same folder as the given pocket. 
+
+You can also process a batch of smiles by providing them in a csv format:
+```bash
+python utils/smiles_conformer_generator.py --csv_path {path_to_csv} --pdb_path {path_to_protein_pocket} --sdf_path {path_to_reference_ligand}
+```
 
 <!-- ## Datasets
 
