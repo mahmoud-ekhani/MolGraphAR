@@ -7,8 +7,8 @@
 
 ## Installation
 ``` bash
-conda create -n pocket2mol python=3.8
-conda activate pocket2mol
+conda create -n molgraphar python=3.8
+conda activate molgraphar
 
 # Install PyTorch and PyTorch Geometric
 conda install pytorch==1.10.1 -c pytorch
