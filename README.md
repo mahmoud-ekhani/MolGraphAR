@@ -13,6 +13,7 @@ conda activate molgraphar
 # Install PyTorch and PyTorch Geometric
 conda install pytorch==1.10.1 -c pytorch
 conda install pyg -c pyg
+conda install pytorch-scatter -c pyg
 
 # Install RdKit, BioPython, OpenBable, and other tools
 conda install rdkit -c conda-forge 
