@@ -51,7 +51,7 @@ def validate_molecule(mol, alerts_path=None, rule_set='Razavi'):
     # alerts = structural_alerts(alerts_path, mol, rule_set)
     alerts = []
 
-    return (len(violations) <= 2 and not alerts, violations + alerts)
+    return (len(violations) <= 2 and not alerts, violations)
 
 def pdb_to_pocket_data(pdb_path, sdf_path, bbox_size):
     ligand_dict = parse_sdf_file(sdf_path)
@@ -236,7 +236,7 @@ if __name__ == '__main__':
                                 logger.warning('Failed molecule: %s' % smiles)
                                 pool.failed.append(data_next)
                             elif not mol_val:
-                                logger.warning('Failed molecule: %s \n Violations: %s' % smiles % ' -- '.join(violations))
+                                logger.warning('Failed molecule: %s \n Violations: %s' % (smiles, ' -- '.join(violations) if len(violations) > 1 else violations))
                                 pool.failed.append(data_next)
                             else:   # Pass checks
                                 logger.info('Success: %s' % smiles)
